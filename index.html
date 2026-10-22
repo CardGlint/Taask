@@ -140,11 +140,7 @@
       const render = () => {
         const today = localISODate(new Date());
         const completedToday=state.completedHistory.filter(item => item.date === today);
-        const remainingTodayCount=state.tasks.reduce((count,task) => {
-          // Undated and overdue tasks count as work still to do today; future tasks wait for their due day.
-          return !task.dueDate || task.dueDate <= today ? count+1 : count;
-        },0);
-        const dailyTaskCount=completedToday.length+remainingTodayCount;
+        const dailyTaskCount=completedToday.length+state.tasks.length;
         const percent=dailyTaskCount ? Math.round(completedToday.length/dailyTaskCount*100) : 0;
         const remainingMinutes = state.tasks.reduce((sum,task) => sum + (Number(task.minutes) || 0),0);
         const hours = remainingMinutes / 60;
@@ -206,7 +202,17 @@
           card.append(check,name,meta,band); tasksEl.append(card);
         }
       };
-      $('#today').textContent = new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date());
+      const updateToday = () => { $('#today').textContent = new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()); };
+      const refreshAtNextDay = () => {
+        const now=new Date();
+        const nextMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+        window.setTimeout(() => { updateToday(); render(); save(); refreshAtNextDay(); },Math.max(100,nextMidnight-now+100));
+      };
+      updateToday();
+      refreshAtNextDay();
+      document.addEventListener('visibilitychange',() => {
+        if (!document.hidden) { updateToday(); render(); }
+      });
       document.addEventListener('click',(event) => {
         if (event.target.closest('.task-tools')) return;
         document.querySelectorAll('.task-menu').forEach(menu=>{ menu.hidden=true; menu.parentElement.querySelector('.task-menu-trigger')?.setAttribute('aria-expanded','false'); });
