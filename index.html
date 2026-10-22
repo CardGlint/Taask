@@ -107,12 +107,19 @@
       const KEY = 'daylist-v1';
       const TTL = 30 * 24 * 60 * 60 * 1000;
       const priorityOrder = { high:0, medium:1, low:2 };
-      const freshState = () => ({ tasks:[], completed:0 });
+      const freshState = () => ({ tasks:[], completed:0, totalPlannedMinutes:0 });
       const readState = () => {
         try {
           const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
           if (!saved || Date.now() > saved.expiresAt || !Array.isArray(saved.tasks)) return freshState();
-          return { tasks:saved.tasks, completed:Number(saved.completed) || 0 };
+          const tasks=saved.tasks;
+          const completed=Number(saved.completed) || 0;
+          const remaining=tasks.reduce((sum,task) => sum + (Number(task.minutes) || 0),0);
+          // Existing saves only kept the completed count, so estimate their old time weight once.
+          const legacyEstimate=remaining + completed * (tasks.length ? remaining/tasks.length : 30);
+          const storedPlan=Number(saved.totalPlannedMinutes);
+          const totalPlannedMinutes=Number.isFinite(storedPlan) && storedPlan >= remaining ? storedPlan : legacyEstimate;
+          return { tasks, completed, totalPlannedMinutes };
         } catch { return freshState(); }
       };
       let state = readState();
@@ -137,9 +144,10 @@
         return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'}).format(new Date(year,month-1,day));
       };
       const render = () => {
-        const total = state.tasks.length + state.completed;
-        const percent = total ? Math.round(state.completed / total * 100) : 0;
         const remainingMinutes = state.tasks.reduce((sum,task) => sum + (Number(task.minutes) || 0),0);
+        const percent = state.totalPlannedMinutes > 0
+          ? Math.max(0,Math.min(100,Math.round((state.totalPlannedMinutes-remainingMinutes)/state.totalPlannedMinutes*100)))
+          : 0;
         const hours = remainingMinutes / 60;
         const timeLabel = hours === 0 ? '0 hours' : `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? 'hour' : 'hours'}`;
         $('#percent').textContent = `${percent}%`;
@@ -183,7 +191,8 @@
           const remove=document.createElement('button'); remove.type='button'; remove.className='delete'; remove.textContent='Delete'; remove.setAttribute('role','menuitem');
           remove.addEventListener('click',() => {
             if (!window.confirm(`Delete “${task.name}”?`)) return;
-            state.tasks=state.tasks.filter(item=>item.id!==task.id); save(); render();
+            state.tasks=state.tasks.filter(item=>item.id!==task.id);
+            state.totalPlannedMinutes=Math.max(0,state.totalPlannedMinutes-(Number(task.minutes)||0)); save(); render();
           });
           menu.append(edit,remove);
           trigger.addEventListener('click',() => {
@@ -213,9 +222,12 @@
         const form=new FormData(event.currentTarget);
         const values={ name:String(form.get('name')).trim(), priority:String(form.get('priority')), minutes:Math.max(1,Number(form.get('minutes')) || 30), dueDate:String(form.get('dueDate') || '') };
         if (editingTaskId) {
+          const original=state.tasks.find(task=>task.id===editingTaskId);
+          if (original) state.totalPlannedMinutes=Math.max(0,state.totalPlannedMinutes+values.minutes-(Number(original.minutes)||0));
           state.tasks=state.tasks.map(task=>task.id===editingTaskId ? { ...task,...values } : task);
         } else {
           state.tasks.push({ id:crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, ...values, createdAt:Date.now() });
+          state.totalPlannedMinutes+=values.minutes;
         }
         save(); render(); dialog.close(); resetForm();
       });
