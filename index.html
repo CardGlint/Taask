@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090909">
+  <link rel="icon" type="image/png" href="fav.png">
+  <title>Quack</title>
+  <style>
+    :root { color-scheme: dark; --bg:#090909; --card:#151515; --line:#303030; --text:#f5f5f5; --muted:#a2a2a2; --green:#39bd7c; --red:#f05252; --yellow:#e4bb42; }
+    * { box-sizing:border-box }
+    body { margin:0; min-width:320px; min-height:100vh; background:var(--bg); color:var(--text); font:15px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,input,select { font:inherit }
+    .shell { width:min(660px,100%); margin:0 auto; padding:26px 22px calc(96px + env(safe-area-inset-bottom)); }
+    header { margin-bottom:17px; }
+    .app-name { margin:0; color:var(--text); font-size:21px; font-weight:650; letter-spacing:-.035em; }
+    .date-heading { margin:2px 0 0; color:var(--muted); font-size:13px; }
+    .overview { padding:16px 17px; border:1px solid var(--line); border-radius:12px; background:var(--card); }
+    .progress-row { display:flex; align-items:center; gap:12px; }
+    .track { flex:1; height:13px; overflow:hidden; border-radius:8px; background:#292929; }
+    .fill { width:0; height:100%; border-radius:inherit; background:repeating-linear-gradient(135deg,#43ca84 0 5px,#248353 5px 8px); transition:width .25s ease; }
+    .percent { min-width:36px; color:var(--text); text-align:right; font-size:13px; font-variant-numeric:tabular-nums; }
+    .stats { display:flex; flex-wrap:wrap; gap:5px 0; margin-top:12px; color:var(--muted); font-size:13px; }
+    .stats span+span::before { content:"·"; padding:0 8px; color:#686868; }
+    .stats b { color:var(--text); font-weight:650; }
+    .tasks { display:grid; gap:10px; margin-top:17px; }
+    .task { position:relative; display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:74px; padding:14px 35px 14px 15px; border:1px solid var(--line); border-radius:11px; background:var(--card); }
+    .priority-band { position:absolute; inset:0 0 0 auto; width:19px; border-radius:0 10px 10px 0; background:var(--priority-color,#777); }
+    .priority-high { --priority-color:var(--red) } .priority-medium { --priority-color:var(--yellow) } .priority-low { --priority-color:var(--green) }
+    .check { appearance:none; width:21px; height:21px; margin:0; border:1.5px solid #888; border-radius:50%; cursor:pointer; position:relative; }
+    .check:checked { border-color:var(--green); background:var(--green); }
+    .check:checked::after { content:"✓"; position:absolute; top:-1px; left:4px; color:#fff; font-size:13px; }
+    .task-name { min-width:0; overflow-wrap:anywhere; font-weight:550; }
+    .task-meta { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; white-space:nowrap; }
+    .duration { font-variant-numeric:tabular-nums; }
+    .due-date { padding-left:10px; border-left:1px solid var(--line); }
+    .task-tools { position:relative; display:flex; align-items:center; margin-left:3px; }
+    .task-menu-trigger { width:38px; height:36px; border:0; border-radius:8px; background:transparent; color:var(--muted); font-size:25px; line-height:1; cursor:pointer; touch-action:manipulation; }
+    .task-menu-trigger:hover,.task-menu-trigger[aria-expanded="true"] { background:#292929; color:var(--text); }
+    .task-menu { position:absolute; z-index:4; top:calc(100% + 4px); right:0; min-width:126px; padding:4px; border:1px solid #444; border-radius:9px; background:#202020; box-shadow:0 8px 24px #0009; }
+    .task-menu[hidden] { display:none; }
+    .task-menu button { display:block; width:100%; min-height:38px; padding:0 10px; border:0; border-radius:6px; background:transparent; color:var(--text); text-align:left; font-size:13px; cursor:pointer; }
+    .task-menu button:hover { background:#333; }
+    .task-menu button.delete { color:#ff8a8a; }
+    .empty { padding:25px 16px; border:1px dashed #393939; border-radius:11px; color:var(--muted); text-align:center; }
+    .add-button { position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; min-height:48px; padding:0 18px; border:0; border-radius:26px; background:#f5f5f5; color:#111; box-shadow:0 6px 24px #0009; font-weight:650; cursor:pointer; touch-action:manipulation; }
+    .add-button:hover { background:#ddd; }
+    .plus { font-size:22px; line-height:1; font-weight:400; }
+    dialog { width:min(430px,calc(100% - 28px)); max-height:calc(100dvh - 28px); overflow:auto; padding:0; border:1px solid #383838; border-radius:15px; background:#151515; color:var(--text); box-shadow:0 24px 80px #000c; }
+    dialog::backdrop { background:#000b; backdrop-filter:blur(2px); }
+    .dialog-inner { padding:20px; }
+    .dialog-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+    .dialog-title h2 { margin:0; font-size:18px; letter-spacing:-.02em; }
+    .close { width:40px; height:40px; border:0; border-radius:8px; background:transparent; color:var(--muted); font-size:24px; cursor:pointer; }
+    .field { margin-bottom:14px; }
+    label { display:block; margin-bottom:6px; font-size:12px; font-weight:650; }
+    input[type=text],input[type=number],input[type=date],select { display:block; width:100%; min-height:44px; padding:0 11px; border:1px solid #444; border-radius:8px; background:#0b0b0b; color:var(--text); outline:none; }
+    input:focus,select:focus { border-color:#999; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+    .submit { width:100%; min-height:46px; border:0; border-radius:8px; background:#f5f5f5; color:#111; font-weight:650; cursor:pointer; }
+    @media(max-width:520px) {
+      .shell { padding:19px 13px calc(88px + env(safe-area-inset-bottom)); }
+      header { margin-bottom:13px; }
+      .app-name { font-size:19px; }
+      .overview { padding:14px; }
+      .track { height:12px; }
+      .stats { font-size:12px; }
+      .stats span+span::before { padding:0 6px; }
+      .tasks { gap:8px; margin-top:12px; }
+      .task { grid-template-columns:22px minmax(0,1fr); gap:7px 10px; min-height:70px; padding:12px 31px 12px 12px; }
+      .task-name { grid-column:2; align-self:end; }
+      .task-meta { grid-column:2; align-self:start; margin-top:0; gap:8px; }
+      .priority-band { width:16px; }
+      .due-date { padding-left:8px; }
+      .add-button { bottom:calc(14px + env(safe-area-inset-bottom)); min-height:48px; }
+      .form-row { grid-template-columns:1fr 1fr; gap:9px; }
+      .dialog-inner { padding:16px; }
+    }
+    @media(max-width:360px) { .stats { font-size:11px; } .stats span+span::before { padding:0 4px; } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header><h1 class="app-name">Quack</h1><div class="date-heading" id="today"></div></header>
+    <section class="overview" aria-label="Task progress">
+      <div class="progress-row"><div class="track" role="progressbar" aria-label="Completed tasks" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div><span class="percent" id="percent">0%</span></div>
+      <div class="stats" id="stats"></div>
+    </section>
+    <section class="tasks" id="tasks" aria-label="Tasks" aria-live="polite"></section>
+  </main>
+  <button class="add-button" id="open-form" aria-label="Add a task"><span class="plus" aria-hidden="true">+</span> Add task</button>
+  <dialog id="task-dialog">
+    <form class="dialog-inner" id="task-form">
+      <div class="dialog-title"><h2 id="dialog-heading">Add a task</h2><button type="button" class="close" id="close-form" aria-label="Close">×</button></div>
+      <div class="field"><label for="task-name">Task</label><input id="task-name" name="name" type="text" maxlength="120" placeholder="Task name" required></div>
+      <div class="form-row">
+        <div class="field"><label for="priority">Priority</label><select id="priority" name="priority"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></div>
+        <div class="field"><label for="minutes">Time (minutes)</label><input id="minutes" name="minutes" type="number" min="1" max="1440" value="30" required></div>
+      </div>
+      <div class="field"><label for="due-date">Date (optional)</label><input id="due-date" name="dueDate" type="date"></div>
+      <button class="submit" id="save-task" type="submit">Add task</button>
+    </form>
+  </dialog>
+  <script>
+    (() => {
+      const KEY = 'daylist-v1';
+      const TTL = 30 * 24 * 60 * 60 * 1000;
+      const priorityOrder = { high:0, medium:1, low:2 };
+      const freshState = () => ({ tasks:[], completed:0 });
+      const readState = () => {
+        try {
+          const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+          if (!saved || Date.now() > saved.expiresAt || !Array.isArray(saved.tasks)) return freshState();
+          return { tasks:saved.tasks, completed:Number(saved.completed) || 0 };
+        } catch { return freshState(); }
+      };
+      let state = readState();
+      const save = () => localStorage.setItem(KEY, JSON.stringify({ ...state, expiresAt:Date.now() + TTL }));
+      save();
+      const $ = (selector) => document.querySelector(selector);
+      const tasksEl = $('#tasks');
+      const dialog = $('#task-dialog');
+      let editingTaskId = null;
+      const prettyTime = (minutes) => minutes >= 60 ? `${Math.floor(minutes/60)}h${minutes%60 ? ` ${minutes%60}m` : ''}` : `${minutes}m`;
+      const dateLabel = (isoDate) => {
+        if (!isoDate) return '';
+        const [year,month,day] = isoDate.split('-').map(Number);
+        return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'}).format(new Date(year,month-1,day));
+      };
+      const render = () => {
+        const total = state.tasks.length + state.completed;
+        const percent = total ? Math.round(state.completed / total * 100) : 0;
+        const remainingMinutes = state.tasks.reduce((sum,task) => sum + (Number(task.minutes) || 0),0);
+        const hours = remainingMinutes / 60;
+        const timeLabel = hours === 0 ? '0 hours' : `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? 'hour' : 'hours'}`;
+        $('#percent').textContent = `${percent}%`;
+        $('#fill').style.width = `${percent}%`;
+        $('.track').setAttribute('aria-valuenow',String(percent));
+        $('#stats').innerHTML = `<span><b>${state.tasks.length}</b> ${state.tasks.length === 1 ? 'task' : 'tasks'} left</span><span><b>${timeLabel}</b> left</span><span><b>${state.completed}</b> done</span>`;
+        const sorted = [...state.tasks].sort((a,b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1) || (Number(a.minutes) || 0) - (Number(b.minutes) || 0) || (a.createdAt || 0) - (b.createdAt || 0));
+        tasksEl.replaceChildren();
+        if (!sorted.length) { const empty=document.createElement('div'); empty.className='empty'; empty.textContent='No tasks yet'; tasksEl.append(empty); return; }
+        for (const task of sorted) {
+          const card=document.createElement('article');
+          const safePriority=['high','medium','low'].includes(task.priority) ? task.priority : 'medium';
+          card.className=`task priority-${safePriority}`;
+          const check=document.createElement('input'); check.type='checkbox'; check.className='check'; check.setAttribute('aria-label',`Complete ${task.name}`);
+          check.addEventListener('change',() => { state.tasks=state.tasks.filter(item=>item.id!==task.id); state.completed+=1; save(); render(); });
+          const name=document.createElement('div'); name.className='task-name'; name.textContent=task.name;
+          const meta=document.createElement('div'); meta.className='task-meta';
+          const duration=document.createElement('span'); duration.className='duration'; duration.textContent=prettyTime(Number(task.minutes) || 0); meta.append(duration);
+          if (task.dueDate) { const due=document.createElement('time'); due.className='due-date'; due.dateTime=task.dueDate; due.textContent=dateLabel(task.dueDate); meta.append(due); }
+          const tools=document.createElement('span'); tools.className='task-tools';
+          const trigger=document.createElement('button'); trigger.type='button'; trigger.className='task-menu-trigger'; trigger.textContent='⋯'; trigger.setAttribute('aria-label',`More options for ${task.name}`); trigger.setAttribute('aria-haspopup','menu'); trigger.setAttribute('aria-expanded','false');
+          const menu=document.createElement('div'); menu.className='task-menu'; menu.setAttribute('role','menu'); menu.hidden=true;
+          const edit=document.createElement('button'); edit.type='button'; edit.textContent='Edit'; edit.setAttribute('role','menuitem');
+          edit.addEventListener('click',() => {
+            menu.hidden=true; trigger.setAttribute('aria-expanded','false');
+            editingTaskId=task.id;
+            $('#dialog-heading').textContent='Edit task'; $('#save-task').textContent='Save changes';
+            $('#task-name').value=task.name; $('#priority').value=safePriority; $('#minutes').value=task.minutes || 30; $('#due-date').value=task.dueDate || '';
+            dialog.showModal(); $('#task-name').focus();
+          });
+          const remove=document.createElement('button'); remove.type='button'; remove.className='delete'; remove.textContent='Delete'; remove.setAttribute('role','menuitem');
+          remove.addEventListener('click',() => {
+            if (!window.confirm(`Delete “${task.name}”?`)) return;
+            state.tasks=state.tasks.filter(item=>item.id!==task.id); save(); render();
+          });
+          menu.append(edit,remove);
+          trigger.addEventListener('click',() => {
+            const shouldOpen=menu.hidden;
+            document.querySelectorAll('.task-menu').forEach(item=>{ item.hidden=true; item.parentElement.querySelector('.task-menu-trigger')?.setAttribute('aria-expanded','false'); });
+            menu.hidden=!shouldOpen; trigger.setAttribute('aria-expanded',String(shouldOpen));
+          });
+          tools.append(trigger,menu); meta.append(tools);
+          const band=document.createElement('span'); band.className='priority-band'; band.setAttribute('aria-hidden','true');
+          card.append(check,name,meta,band); tasksEl.append(card);
+        }
+      };
+      $('#today').textContent = new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date());
+      document.addEventListener('click',(event) => {
+        if (event.target.closest('.task-tools')) return;
+        document.querySelectorAll('.task-menu').forEach(menu=>{ menu.hidden=true; menu.parentElement.querySelector('.task-menu-trigger')?.setAttribute('aria-expanded','false'); });
+      });
+      const resetForm = () => {
+        editingTaskId=null; $('#task-form').reset(); $('#minutes').value=30;
+        $('#dialog-heading').textContent='Add a task'; $('#save-task').textContent='Add task';
+      };
+      $('#open-form').addEventListener('click',() => { resetForm(); dialog.showModal(); $('#task-name').focus(); });
+      $('#close-form').addEventListener('click',() => { dialog.close(); resetForm(); });
+      dialog.addEventListener('click',(event) => { if (event.target === dialog) dialog.close(); });
+      $('#task-form').addEventListener('submit',(event) => {
+        event.preventDefault();
+        const form=new FormData(event.currentTarget);
+        const values={ name:String(form.get('name')).trim(), priority:String(form.get('priority')), minutes:Math.max(1,Number(form.get('minutes')) || 30), dueDate:String(form.get('dueDate') || '') };
+        if (editingTaskId) {
+          state.tasks=state.tasks.map(task=>task.id===editingTaskId ? { ...task,...values } : task);
+        } else {
+          state.tasks.push({ id:crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, ...values, createdAt:Date.now() });
+        }
+        save(); render(); dialog.close(); resetForm();
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
