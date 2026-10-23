@@ -125,13 +125,6 @@
       let editingTaskId = null;
       const prettyTime = (minutes) => minutes >= 60 ? `${Math.floor(minutes/60)}h${minutes%60 ? ` ${minutes%60}m` : ''}` : `${minutes}m`;
       const localISODate = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-      const getDueGroup = (dueDate,today,tomorrow) => {
-        if (!dueDate) return 4;
-        if (dueDate === today) return 0;
-        if (dueDate === tomorrow) return 1;
-        if (dueDate < today) return 2;
-        return 3;
-      };
       const dateLabel = (isoDate) => {
         if (!isoDate) return '';
         const [year,month,day] = isoDate.split('-').map(Number);
@@ -149,12 +142,9 @@
         $('#fill').style.width = `${percent}%`;
         $('.track').setAttribute('aria-valuenow',String(percent));
         $('#stats').innerHTML = `<span><b>${state.tasks.length}</b> ${state.tasks.length === 1 ? 'task' : 'tasks'} left</span><span><b>${timeLabel}</b> left</span><span><b>${completedToday.length}</b> done today</span>`;
-        const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate()+1);
-        const tomorrow = localISODate(tomorrowDate);
         const sorted = [...state.tasks].sort((a,b) => {
-          const groupA=getDueGroup(a.dueDate,today,tomorrow), groupB=getDueGroup(b.dueDate,today,tomorrow);
-          return groupA-groupB ||
-            ((groupA === 2 || groupA === 3) ? String(a.dueDate).localeCompare(String(b.dueDate)) : 0) ||
+          const dateA=a.dueDate || '9999-12-31', dateB=b.dueDate || '9999-12-31';
+          return dateA.localeCompare(dateB) ||
             (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1) ||
             (Number(b.minutes) || 0) - (Number(a.minutes) || 0) ||
             (a.createdAt || 0) - (b.createdAt || 0);
